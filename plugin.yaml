@@ -1,6 +1,6 @@
 name: desire-to-goal-driver
 kind: standalone
-version: 1.0.1
+version: 1.0.2
 description: |
   Hooks pre_llm_call to invoke the workflow-engine on vague-desire
   user messages and inject the engine's mini_prompt + state_summary
@@ -8,3 +8,4 @@ description: |
   instruction (which the bot routinely ignores) and the engine's
   deterministic slot-extraction + phase routing.
 author: nnnet/AiManager
+repo: https://github.com/nnnet/hermes-plugin-desire-to-goal-driver
