@@ -1,0 +1,10 @@
+name: desire-to-goal-driver
+kind: standalone
+version: 1.0.0
+description: |
+  Hooks pre_llm_call to invoke the workflow-engine on vague-desire
+  user messages and inject the engine's mini_prompt + state_summary
+  into the bot's context. Bridges the gap between the SKILL.md
+  instruction (which the bot routinely ignores) and the engine's
+  deterministic slot-extraction + phase routing.
+author: nnnet/AiManager
