@@ -1,6 +1,6 @@
 name: desire-to-goal-driver
 kind: standalone
-version: 1.0.0
+version: 1.0.1
 description: |
   Hooks pre_llm_call to invoke the workflow-engine on vague-desire
   user messages and inject the engine's mini_prompt + state_summary

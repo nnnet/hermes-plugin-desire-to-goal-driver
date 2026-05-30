@@ -135,6 +135,20 @@ _CLARIFICATION_TERMINAL_PHASE = "DONE"
 _DEFAULT_NEXT_SKILL = "devops/chief-manager"
 
 
+def _is_test_mode() -> bool:
+    """True when the gateway is running under a test harness.
+
+    The workflow engine accepts ``--is-test`` to skip side-effects
+    (e.g. real LLM scoring); the driver propagates the flag here so the
+    engine and gateway agree on test semantics. Detection mirrors the
+    one used by Hermes' test fixtures:
+
+    * ``HERMES_TEST_MODE=1`` — explicit flag set by E2E runners
+    * default = False (prod)
+    """
+    return os.environ.get("HERMES_TEST_MODE", "").strip() == "1"
+
+
 def _read_artifact(artifact_path: str) -> dict[str, Any]:
     """Read and parse the artifact YAML. Returns {} on any failure."""
     try:
