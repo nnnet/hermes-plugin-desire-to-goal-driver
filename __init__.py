@@ -680,14 +680,14 @@ def _on_pre_llm_call(**kwargs: Any) -> Optional[dict[str, str]]:
                 "desire-to-goal-driver: skipping new invocation — "
                 "user reply already structured (Pitfall #7 EXIT)"
             )
-        # CRITICAL: also clear F1 gate _ACTIVE set in tools.desire_to_goal_gate.
+        # CRITICAL: also clear F1 gate _ACTIVE set in desire_to_goal_gate.
         # Otherwise gateway-level tool blocker (chief_spawn, mc_*, kanban_*,
         # workflow_run, etc.) stays active and bot reports «нет тулзов».
         # F1 gate state is a process-wide Set keyed by session_id, separate
-        # from registry. See infra/hermes/overrides/tools/desire_to_goal_gate.py
-        # for the blocked list.
+        # from registry. desire_to_goal_gate.py живёт рядом с этим
+        # плагином — переехало 2026-05-31 из infra/hermes/overrides/tools/.
         try:
-            from tools import desire_to_goal_gate as _f1_gate
+            from . import desire_to_goal_gate as _f1_gate
             _f1_gate.reset(session_id)
             logger.info(
                 "desire-to-goal-driver: cleared F1 gate _ACTIVE for "
