@@ -696,6 +696,10 @@ def _on_pre_llm_call(**kwargs: Any) -> Optional[dict[str, str]]:
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("F1 gate clear failed: %s", exc)
+        # Tag session for transform_llm_output post-LLM rewrite if bot
+        # still leaks D2G template content.
+        import time as _time
+        _RECENT_EXIT_SESSIONS[session_id] = _time.time()
         # Inject EXIT signal as system-prompt context so bot DOES NOT
         # continue asking clarifying questions from conversation history.
         # Return shape matches engine_block injection path
@@ -853,6 +857,66 @@ def _on_pre_llm_call(**kwargs: Any) -> Optional[dict[str, str]]:
     return {"context": block}
 
 
+# ── Pitfall #7 post-LLM transform: detect D2G-clarification template
+# leakage and replace with handoff text. Pre_llm_call returns EXIT
+# context, BUT sonnet may still follow already-loaded SOUL.md skill
+# instructions from earlier turns. transform_llm_output is our final
+# net: if response matches the D2G clarification template AND the
+# Pitfall #7 EXIT was triggered for this session, rewrite the
+# response into a direct handoff acknowledgement.
+_RECENT_EXIT_SESSIONS: dict[str, float] = {}
+_EXIT_GRACE_SECONDS = 120.0
+
+_D2G_TEMPLATE_MARKERS = (
+    "истинная цель",
+    "разложу как услышал",
+    "поправь",
+    "два важных вопроса",
+    "правильно понял?",
+    "не указано",
+    "средство:",
+    "место/контекст",
+)
+
+
+def _on_transform_llm_output(**kwargs: Any) -> Optional[str]:
+    """Rewrite D2G-template responses when EXIT was just triggered."""
+    try:
+        session_id = str(kwargs.get("session_id") or "")
+        if not session_id:
+            return None
+        import time as _time
+        ts = _RECENT_EXIT_SESSIONS.get(session_id)
+        if ts is None or (_time.time() - ts) > _EXIT_GRACE_SECONDS:
+            return None  # No recent EXIT — pass through
+
+        response = str(kwargs.get("response_text") or "")
+        if not response:
+            return None
+        low = response.lower()
+        hits = sum(1 for m in _D2G_TEMPLATE_MARKERS if m in low)
+        if hits < 3:
+            return None  # Not D2G template — leave alone
+
+        # Pop the EXIT timestamp so we don't double-transform on retries
+        _RECENT_EXIT_SESSIONS.pop(session_id, None)
+        logger.info(
+            "desire-to-goal-driver: transform_llm_output rewrote "
+            "D2G-template leakage (session=%s, marker_hits=%d)",
+            session_id, hits,
+        )
+        return (
+            "Принято, передаю команде проекта. Спавню chief через "
+            "`chief_spawn` со clarified goal — отчитаюсь когда команда "
+            "соберётся.\n\n"
+            "[NOTE: post-LLM transform replaced D2G clarification "
+            "template — emit chief_spawn tool call on next turn.]"
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("transform_llm_output hook error: %s", exc)
+        return None
+
+
 def _on_session_reset(session_id: str | None = None, platform: str | None = None,
                       **_kwargs: Any) -> None:
     """Gateway fires this AFTER ``/new`` or ``/reset`` finishes:
@@ -919,7 +983,9 @@ def register(ctx) -> None:
     ctx.register_hook("pre_llm_call", _on_pre_llm_call)
     ctx.register_hook("pre_tool_call", _on_pre_tool_call)
     ctx.register_hook("on_session_reset", _on_session_reset)
+    ctx.register_hook("transform_llm_output", _on_transform_llm_output)
     logger.info(
         "desire-to-goal-driver plugin registered hooks: "
-        "pre_llm_call + pre_tool_call + on_session_reset"
+        "pre_llm_call + pre_tool_call + on_session_reset + "
+        "transform_llm_output"
     )
