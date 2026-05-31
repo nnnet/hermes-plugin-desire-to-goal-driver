@@ -680,6 +680,22 @@ def _on_pre_llm_call(**kwargs: Any) -> Optional[dict[str, str]]:
                 "desire-to-goal-driver: skipping new invocation — "
                 "user reply already structured (Pitfall #7 EXIT)"
             )
+        # CRITICAL: also clear F1 gate _ACTIVE set in tools.desire_to_goal_gate.
+        # Otherwise gateway-level tool blocker (chief_spawn, mc_*, kanban_*,
+        # workflow_run, etc.) stays active and bot reports «нет тулзов».
+        # F1 gate state is a process-wide Set keyed by session_id, separate
+        # from registry. See infra/hermes/overrides/tools/desire_to_goal_gate.py
+        # for the blocked list.
+        try:
+            from tools import desire_to_goal_gate as _f1_gate
+            _f1_gate.reset(session_id)
+            logger.info(
+                "desire-to-goal-driver: cleared F1 gate _ACTIVE for "
+                "session=%s — tools unblocked (Pitfall #7 EXIT)",
+                session_id,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("F1 gate clear failed: %s", exc)
         # Inject EXIT signal as system-prompt context so bot DOES NOT
         # continue asking clarifying questions from conversation history.
         # Return shape matches engine_block injection path
@@ -691,13 +707,23 @@ def _on_pre_llm_call(**kwargs: Any) -> Optional[dict[str, str]]:
             "even if prior conversation history shows D2G-style "
             "structure-questions. Goal is clear.\n"
             "\n"
-            "Your job in this turn (DO ONLY THIS):\n"
-            "1. Short acknowledgement (≤1 sentence) — e.g. «Понял, делаю.»\n"
-            "2. Decide: self-execute (mелочь, ≤30 min) OR chief_spawn "
-            "(real project, multiple sessions). NO multi-question "
-            "follow-up. NO «какие три секции?» style queries.\n"
-            "3. If self-execute — start tool calls. If chief_spawn — "
-            "ONE tool call.\n"
+            "**SCOPE ROUTING (decide BEFORE responding):**\n"
+            "• SMALL (≤30 min, 1 session, single concern like one HTML page, "
+            "one file edit, one query) → self-execute via tools.\n"
+            "• LARGE (multi-day, multi-session, multiple concerns, requires "
+            "team — e.g. «платформа», «стартап», «3-месячный план», course, "
+            "service with several integrations) → **MUST call chief_spawn** "
+            "with the clarified goal. DO NOT self-execute large projects.\n"
+            "\n"
+            "**Your job THIS TURN (DO ONLY THIS):**\n"
+            "1. ≤1 sentence acknowledgement — e.g. «Понял, делаю.» or "
+            "«Принято, передаю команде проекта.»\n"
+            "2. ONE tool call: self-execute action (small) OR chief_spawn "
+            "(large). NO multi-question follow-up.\n"
+            "\n"
+            "If the goal text mentions «платформа», «стартап», «MVP», "
+            "«курс», «сайт с N разделами + оплатой», «3 месяца», 3+ "
+            "user roles, multiple integrations → LARGE → chief_spawn.\n"
         )
         return {"context": exit_block}
 
