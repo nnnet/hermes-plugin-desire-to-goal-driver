@@ -680,8 +680,26 @@ def _on_pre_llm_call(**kwargs: Any) -> Optional[dict[str, str]]:
                 "desire-to-goal-driver: skipping new invocation — "
                 "user reply already structured (Pitfall #7 EXIT)"
             )
-        # Bail out — let upstream bot handle the filled goal directly.
-        return None
+        # Inject EXIT signal as system-prompt context so bot DOES NOT
+        # continue asking clarifying questions from conversation history.
+        # Return shape matches engine_block injection path
+        # (return {"context": block}).
+        exit_block = (
+            "\n[DESIRE-TO-GOAL EXIT — Pitfall #7]\n"
+            "User filled goal slots directly with YAML-style "
+            "`- key: value` reply. **STOP asking clarifying questions** "
+            "even if prior conversation history shows D2G-style "
+            "structure-questions. Goal is clear.\n"
+            "\n"
+            "Your job in this turn (DO ONLY THIS):\n"
+            "1. Short acknowledgement (≤1 sentence) — e.g. «Понял, делаю.»\n"
+            "2. Decide: self-execute (mелочь, ≤30 min) OR chief_spawn "
+            "(real project, multiple sessions). NO multi-question "
+            "follow-up. NO «какие три секции?» style queries.\n"
+            "3. If self-execute — start tool calls. If chief_spawn — "
+            "ONE tool call.\n"
+        )
+        return {"context": exit_block}
 
     # ── cancel-intent: finalize current invocation BEFORE engine call ───
     if active is not None and _detect_cancel_intent(user_msg):
