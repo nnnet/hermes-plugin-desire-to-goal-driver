@@ -590,6 +590,40 @@ _CANCEL_PATTERNS = (
 )
 
 
+# Pitfall #7 (clarification_sequencing_desire_to_goal_first.md):
+# когда юзер сразу даёт structured `- key: value` ответ — это
+# EXIT-signal из desire-to-goal flow. Goal slots уже заполнены
+# вручную, clarification не нужна, нужно сразу exec/spawn.
+#
+# Распознаём:
+#   • 2+ строки начинающиеся с `- <slot>:` (multi-line YAML-style fill)
+#   • Любой `<slot>:` где slot — ключевое поле schema
+_STRUCTURED_SLOT_KEYS = (
+    "true_goal", "true goal", "истинная цель", "цель",
+    "context", "контекст",
+    "scope", "scope_choice",
+    "constraint", "constraints", "ограничения",
+    "deliverable", "deliverables",
+)
+_STRUCTURED_LINE_RE = re.compile(
+    r"^\s*-\s*(" + "|".join(re.escape(k) for k in _STRUCTURED_SLOT_KEYS) + r")\s*:",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _detect_structured_reply(user_msg: str) -> bool:
+    """Pitfall #7: user replied with YAML-style `- key: value` filling
+    goal slots directly. Skip D2G clarification, hand off to exec/spawn.
+
+    Trigger: at least one match of `- <known_slot>:` pattern. Conservative
+    — only counts slot keys we recognize, not arbitrary YAML.
+    """
+    if not user_msg or len(user_msg) < 15:
+        return False
+    matches = _STRUCTURED_LINE_RE.findall(user_msg)
+    return len(matches) >= 1
+
+
 def _detect_cancel_intent(user_msg: str) -> bool:
     """Cancel-intent heuristic. Engine has its own ``detect_cancellation``
     inside ``core/detectors.py`` — this is the PLUGIN-side mirror so we
@@ -625,6 +659,29 @@ def _on_pre_llm_call(**kwargs: Any) -> Optional[dict[str, str]]:
         registry.find_active(_WORKFLOW_NAME, agent_id, conversation_id)
         if registry is not None else None
     )
+
+    # ── Pitfall #7: structured `- key: value` reply = EXIT signal ──────
+    # User filled goal slots directly — skip D2G clarification entirely.
+    # If active invocation exists — mark cancelled so post-DONE grace
+    # kicks in; next responsible skill (chief-manager) takes over.
+    if _detect_structured_reply(user_msg):
+        if active is not None and registry is not None:
+            try:
+                registry.cancel(active.invocation_id)
+                logger.info(
+                    "desire-to-goal-driver: cancelled invocation %s — "
+                    "user gave structured reply (Pitfall #7 EXIT)",
+                    active.invocation_id,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("structured-reply cancel failed: %s", exc)
+        else:
+            logger.info(
+                "desire-to-goal-driver: skipping new invocation — "
+                "user reply already structured (Pitfall #7 EXIT)"
+            )
+        # Bail out — let upstream bot handle the filled goal directly.
+        return None
 
     # ── cancel-intent: finalize current invocation BEFORE engine call ───
     if active is not None and _detect_cancel_intent(user_msg):
