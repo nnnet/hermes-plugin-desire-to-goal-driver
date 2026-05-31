@@ -1,0 +1,21 @@
+__init__.py
+  s_e5369d415d379b::t_00e65fab344171 683,687-688,690
+desire_to_goal_gate.py
+  s_e5369d415d379b::t_771ee531b9966e 1-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "620b9f27716b6fd590b73e37244b6b100d82f663",
+  "prompts": {},
+  "sessions": {
+    "s_e5369d415d379b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b040558-739b-4a21-810b-53eec3b51a99",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "nnnet <zkowkmdx@sharklasers.com>"
+    }
+  }
+}
