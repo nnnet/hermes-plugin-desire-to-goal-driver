@@ -596,10 +596,22 @@ def _resolve_identity(kwargs: dict[str, Any]) -> tuple[str, str]:
     return agent_id, conversation_id
 
 
+# Patterns that signal "drop current goal, start over".
+#
+# Must be UNAMBIGUOUS — substring match treats the whole user message,
+# so single common words like "сначала" or "забудь" used in normal
+# flow ("сначала что-то попроще", "забудь, неважно, давай дальше")
+# would mis-trigger and reset the engine mid-clarification, which the
+# bot then notices as a state mismatch (engine claims completeness=0
+# while the bot's own memory shows several slots filled). Keep only
+# phrases that have no innocent reading.
 _CANCEL_PATTERNS = (
-    "забудь", "сначала", "отмени ", "отмена",
-    "/reset", "/start ", "/start\n", "новая задача",
-    "новая тема", "переключаем", "вернёмся к", "вернемся к",
+    "/reset", "/start ", "/start\n",
+    "отмена", "отменяю", "отмени задачу",
+    "новая задача", "новая тема",
+    "забудь всё", "забудь все", "забудь про это",
+    "начнём заново", "начнем заново",
+    "переключимся на", "переключимся к",
 )
 
 
