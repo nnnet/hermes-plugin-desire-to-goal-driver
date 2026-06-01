@@ -1,0 +1,20 @@
+__init__.py
+  s_e5369d415d379b::t_09b143beea6f45 315
+  s_e5369d415d379b::t_e61910cc8c69a4 275-280,282-287,289-299
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "9615ff554c82c13fb686057a6b1b72ea7ff0170b",
+  "prompts": {},
+  "sessions": {
+    "s_e5369d415d379b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b040558-739b-4a21-810b-53eec3b51a99",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "nnnet <zkowkmdx@sharklasers.com>"
+    }
+  }
+}
