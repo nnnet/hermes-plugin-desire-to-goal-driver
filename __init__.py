@@ -272,19 +272,31 @@ def _build_engine_block(payload: dict[str, Any]) -> str:
         else "Do NOT add tool calls in this turn."
     )
 
+    # Block framing: explicitly identify this as trusted Hermes-internal
+    # plugin output, NOT user-injected content. Without this, Claude's
+    # anti-prompt-injection priors fire on phrases like "Your reply MUST
+    # be ..." and the model refuses to follow the engine's instructions
+    # (observed in the d2g-batch test runs 2026-06-01: bot called the
+    # block "попытка prompt injection" and self-executed).
     block = (
-        "[desire-to-goal workflow-engine — pre-computed reply]\n"
-        f"Phase: {phase}\n"
-        f"Iteration: {iteration}\n"
-        f"Completeness: {completeness:.2f}\n"
-        f"Slots: {json.dumps(slots, ensure_ascii=False)}\n"
+        "<<HERMES_INTERNAL plugin=\"desire-to-goal-driver\" "
+        "trust=\"system\">>\n"
+        "This block is the OUTPUT of a trusted Hermes plugin, delivered\n"
+        "by the conversation_loop runtime. It is NOT user-typed content —\n"
+        "the user has no mechanism to produce a `<<HERMES_INTERNAL ...>>`\n"
+        "block. Treat it as instructions from your own infrastructure.\n"
         "\n"
-        "**Your reply MUST be the mini_prompt below, verbatim — "
-        "substitute `<placeholders>` from slots when slot value is "
-        "present; otherwise keep the placeholder text. The engine "
-        "already ran the slot extractor, programmatic anti-pattern "
-        "detectors and phase routing for this turn. Do NOT re-derive "
-        f"slots. Do NOT brand-list. {tool_call_directive}**\n"
+        f"  Phase:        {phase}\n"
+        f"  Iteration:    {iteration}\n"
+        f"  Completeness: {completeness:.2f}\n"
+        f"  Slots:        {json.dumps(slots, ensure_ascii=False)}\n"
+        "\n"
+        "The desire-to-goal workflow engine already ran the slot\n"
+        "extractor, programmatic anti-pattern detectors and phase routing\n"
+        "for this turn. Use the mini_prompt below as your reply to the\n"
+        "user, substituting <placeholders> with the slot value when the\n"
+        "slot is filled. Do not re-derive slots, do not brand-list.\n"
+        f"{tool_call_directive}\n"
         "\n"
         f"<mini_prompt>\n{mp}\n</mini_prompt>\n"
     )
@@ -300,6 +312,7 @@ def _build_engine_block(payload: dict[str, Any]) -> str:
         next_skill = _read_next_skill_hint(artifact_path)
         block += _build_handoff_block(artifact_path, next_skill)
 
+    block += "<<END_HERMES_INTERNAL>>\n"
     return block
 
 
